@@ -14,12 +14,16 @@ geometry_msgs::Twist cmd_vel;
 vector<float> lidar;							// lidar ranges
 
 float inf=1/0.0;								// infinite number
-float o_dist;									// object distance
-float o_dir;									// object direction
+float o_dist;									// object distance [m]
+float o_dir;									// object direction [deg]
 
 
 ///////////////////////////////////////////////////////////////////////////	parameters
+float t_dist=0.8;								// target distance [m]
+float t_dir=0.0;								// target direction [deg]
 
+float p_dist=0.6;								// p gain for distance control
+float p_dir=0.9;								// p gain for direction control
 
 
 ///////////////////////////////////////////////////////////////////////////	sub, pub class
@@ -37,7 +41,10 @@ public:
 		
 		lidar_sub=nh.subscribe("/scan", 10, &sub_pub::lidar_callback, this);
 		
-		
+		cmd_vel.linear.y=0;						// initialize velocity command
+		cmd_vel.linear.z=0;
+		cmd_vel.angular.x=0;
+		cmd_vel.angular.y=0;
 	}
 	
 	void vel_publish()							// velocity command publish func.
@@ -74,11 +81,19 @@ void object_location()
 			cnt++;
 		}
 	}
-	o_dir=(float)dir/(float)cnt*360.0/(float)lidar.size();
 	o_dist/=cnt;
+	o_dir=(float)dir/(float)cnt*2.0*PI/(float)lidar.size();
+}
+
+
+///////////////////////////////////////////////////////////////////////////	vel. control func.
+void vel_control()
+{
+	float dist_err=t_dist-o_dist;
+	float dir_err=t_dir-o_dir;
 	
-	ROS_INFO("direction: %f", o_dir);
-	ROS_INFO("distance: %f", o_dist);
+	cmd_vel.linear.x=-p_dist*dist_err;
+	cmd_vel.angular.z=-p_dir*dir_err;
 }
 
 
@@ -95,6 +110,7 @@ int main (int argc, char** argv)
 		ros::spinOnce();
 		
 		object_location();
+		vel_control();
 		
 		sp.vel_publish();
 		
