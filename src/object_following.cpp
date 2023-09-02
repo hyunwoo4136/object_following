@@ -22,7 +22,7 @@ float dev;
 
 float inf=1/0.0;								// infinite number
 float o_dist;									// object distance [m]
-float o_dir;									// object direction [deg]
+float o_dir=0.0;								// object direction [deg]
 
 
 ///////////////////////////////////////////////////////////////////////////	parameters
@@ -93,15 +93,6 @@ void high_pass_filter()
 	}
 	
 	lidar_f[0]=tau*(lidar_f[l_num-1]+lidar[0]-lidar[l_num-1]);
-	
-	
-	
-	
-	//////////////////////////////////////////////////////////// for debugging
-	for(int i=0; i<l_num; i++)
-	{
-		ROS_INFO("idx [%d]: %f", i, lidar_f[i]);
-	}
 }
 
 
@@ -114,14 +105,12 @@ void std_deviation()
 	{
 		mean+=lidar_f[i];
 	}
-	
 	mean/=l_num;
 	
 	for(int i=0; i<l_num; i++)
 	{
 		dev+=(lidar_f[i]-mean)*(lidar_f[i]-mean);
 	}
-	
 	dev=sqrt(dev/l_num);
 }
 
@@ -143,10 +132,10 @@ void find_boundary()
 			b_idx.erase(b_idx.begin()+i);
 	}
 	
-	//////////////////////////////////////////////////////////// for debugging
+	////////////////////////////////////////////////////////////////for debugging
 	for(int i=0; i<b_idx.size(); i++)
 	{
-		ROS_INFO("boundary: %d", b_idx[i]);
+		ROS_INFO("boundary [%d]: %d", i, b_idx[i]);
 	}
 }
 
@@ -154,37 +143,95 @@ void find_boundary()
 ///////////////////////////////////////////////////////////////////////////	object location func.
 void object_location()
 {
-	int cnt=0;
-	int dir=0;
-	o_dist=0;
+	int dir=int(o_dir/2.0/PI*(float)l_num);
+	int left_b;
+	int right_b;
 	
-	for(int i=0; i<l_num; i++)
+	o_dist=0;
+	o_dir=0;
+	
+	if((dir>b_idx[b_idx.size()-1]-l_num) && (dir<b_idx[0]))
 	{
-		if(lidar[i]!=inf)
+		left_b=b_idx[b_idx.size()-1];
+		right_b=b_idx[0];
+	}
+	else
+	{
+		for(int i=1; i<b_idx.size(); i++)
+		{
+			if(b_idx[i]<l_num/2)
+			{
+				if((dir>b_idx[i-1]) && (dir<b_idx[i]))
+				{
+					left_b=b_idx[i-1];
+					right_b=b_idx[i];
+					break;
+				}
+			}
+			else
+			{
+				if((dir>b_idx[i-1]-l_num) && (dir<b_idx[i]-l_num))
+				{
+					left_b=b_idx[i-1];
+					right_b=b_idx[i];
+					break;
+				}
+			}
+		}
+	}
+	
+	////////////////////////////////////////////////////////////////for debugging
+	ROS_INFO("reference direction: %d", dir);
+	ROS_INFO("left boundary: %d", left_b);
+	ROS_INFO("right boundary: %d", right_b);
+	
+	if(left_b<right_b)
+	{
+		for(int i=left_b; i<right_b; i++)
 		{
 			o_dist+=lidar[i];
 			
-			if(i<(lidar.size()/2))
-				dir+=i;
+			if(i<(l_num/2))
+				o_dir+=(float)i;
 			else
-				dir+=i-l_num;
-			
-			cnt++;
+				o_dir+=float(i-l_num);
 		}
+		o_dist/=float(right_b-left_b);
+		o_dir=o_dir/float(right_b-left_b)*2.0*PI/(float)l_num;
 	}
-	o_dist/=cnt;
-	o_dir=(float)dir/(float)cnt*2.0*PI/(float)l_num;
+	else
+	{
+		for(int i=0; i<right_b; i++)
+		{
+			o_dist+=lidar[i];
+			
+			o_dir+=(float)i;
+		}
+		
+		for(int i=left_b; i<l_num; i++)
+		{
+			o_dist+=lidar[i];
+			
+			o_dir+=float(i-l_num);
+		}
+		o_dist/=float(right_b-left_b+l_num);
+		o_dir=o_dir/float(right_b-left_b+l_num)*2.0*PI/(float)l_num;
+	}
+	
+	////////////////////////////////////////////////////////////////for debugging
+	ROS_INFO("distance: %f", o_dist);
+	ROS_INFO("direction: %f", o_dir*360.0/2.0/PI);
 }
 
 
 ///////////////////////////////////////////////////////////////////////////	vel. control func.
 void vel_control()
 {
-	float dist_err=t_dist-o_dist;
-	float dir_err=t_dir-o_dir;
+	float dist_err=o_dist-t_dist;
+	float dir_err=o_dir-t_dir;
 	
-	cmd_vel.linear.x=-p_dist*dist_err;
-	cmd_vel.angular.z=-p_dir*dir_err;
+	cmd_vel.linear.x=p_dist*dist_err;
+	cmd_vel.angular.z=p_dir*dir_err;
 }
 
 
@@ -194,7 +241,7 @@ int main (int argc, char** argv)
 	ros::init(argc, argv, "object_following");
 	sub_pub sp;									// declare sub, pub class
 
-	ros::Rate loop_rate(5);
+	ros::Rate loop_rate(10);
 	
 	while(ros::ok())
 	{
@@ -205,11 +252,10 @@ int main (int argc, char** argv)
 			high_pass_filter();
 			std_deviation();
 			find_boundary();
+			object_location();
+			vel_control();
+			sp.vel_publish();
 		}
-		//object_location();
-		//vel_control();
-		
-		//sp.vel_publish();
 		
 		loop_rate.sleep();
 	}
