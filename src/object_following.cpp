@@ -11,7 +11,14 @@ using namespace std;
 
 geometry_msgs::Twist cmd_vel;
 
+bool sub_flag=false;
+
 vector<float> lidar;							// lidar ranges
+vector<float> lidar_f;							// filtered lidar ranges
+vector<int> b_idx;								// boundary index
+
+int l_num;										// lidar data element number
+float dev;
 
 float inf=1/0.0;								// infinite number
 float o_dist;									// object distance [m]
@@ -19,6 +26,9 @@ float o_dir;									// object direction [deg]
 
 
 ///////////////////////////////////////////////////////////////////////////	parameters
+float max_rng=8.0;								// lidar max range
+float tau=0.5;									// high pass filter coefficient
+
 float t_dist=0.8;								// target distance [m]
 float t_dir=0.0;								// target direction [deg]
 
@@ -54,10 +64,91 @@ public:
 	
 	void lidar_callback(const sensor_msgs::LaserScan::ConstPtr& msg)	// call back function
 	{
+		sub_flag=true;
+		
 		lidar.clear();
 		lidar=msg->ranges;
+		
+		l_num=lidar.size();
+		
+		for(int i=0; i<l_num; i++)
+		{
+			if(lidar[i]==inf)
+				lidar[i]=max_rng;
+		}
 	}
 };
+
+
+///////////////////////////////////////////////////////////////////////////	h-p filter func.
+void high_pass_filter()
+{
+	lidar_f.clear();
+	
+	lidar_f.push_back(tau*lidar[0]);
+	
+	for(int i=1; i<l_num; i++)
+	{
+		lidar_f.push_back(tau*(lidar_f[i-1]+lidar[i]-lidar[i-1]));
+	}
+	
+	lidar_f[0]=tau*(lidar_f[l_num-1]+lidar[0]-lidar[l_num-1]);
+	
+	
+	
+	
+	//////////////////////////////////////////////////////////// for debugging
+	for(int i=0; i<l_num; i++)
+	{
+		ROS_INFO("idx [%d]: %f", i, lidar_f[i]);
+	}
+}
+
+
+///////////////////////////////////////////////////////////////////////////	std. dev. func.
+void std_deviation()
+{
+	float mean=0.0;
+	
+	for(int i=0; i<l_num; i++)
+	{
+		mean+=lidar_f[i];
+	}
+	
+	mean/=l_num;
+	
+	for(int i=0; i<l_num; i++)
+	{
+		dev+=(lidar_f[i]-mean)*(lidar_f[i]-mean);
+	}
+	
+	dev=sqrt(dev/l_num);
+}
+
+
+///////////////////////////////////////////////////////////////////////////	boundary func.
+void find_boundary()
+{
+	b_idx.clear();
+	
+	for(int i=0; i<l_num; i++)
+	{
+		if(fabs(lidar_f[i])>dev)
+			b_idx.push_back(i);
+	}
+	
+	for(int i=b_idx.size()-1; i>=0; i--)
+	{
+		if((b_idx[i]-b_idx[i-1]==1) && (lidar_f[b_idx[i]]*lidar_f[b_idx[i-1]]>0))
+			b_idx.erase(b_idx.begin()+i);
+	}
+	
+	//////////////////////////////////////////////////////////// for debugging
+	for(int i=0; i<b_idx.size(); i++)
+	{
+		ROS_INFO("boundary: %d", b_idx[i]);
+	}
+}
 
 
 ///////////////////////////////////////////////////////////////////////////	object location func.
@@ -67,7 +158,7 @@ void object_location()
 	int dir=0;
 	o_dist=0;
 	
-	for(int i=0; i<lidar.size(); i++)
+	for(int i=0; i<l_num; i++)
 	{
 		if(lidar[i]!=inf)
 		{
@@ -76,13 +167,13 @@ void object_location()
 			if(i<(lidar.size()/2))
 				dir+=i;
 			else
-				dir+=i-lidar.size();
+				dir+=i-l_num;
 			
 			cnt++;
 		}
 	}
 	o_dist/=cnt;
-	o_dir=(float)dir/(float)cnt*2.0*PI/(float)lidar.size();
+	o_dir=(float)dir/(float)cnt*2.0*PI/(float)l_num;
 }
 
 
@@ -109,10 +200,16 @@ int main (int argc, char** argv)
 	{
 		ros::spinOnce();
 		
-		object_location();
-		vel_control();
+		if(sub_flag==true)
+		{
+			high_pass_filter();
+			std_deviation();
+			find_boundary();
+		}
+		//object_location();
+		//vel_control();
 		
-		sp.vel_publish();
+		//sp.vel_publish();
 		
 		loop_rate.sleep();
 	}
