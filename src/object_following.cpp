@@ -9,15 +9,15 @@ using namespace std;
 ///////////////////////////////////////////////////////////////////////////	var. declaration
 #define PI 3.141592
 
-geometry_msgs::Twist cmd_vel;
+geometry_msgs::Twist cmd_vel;					// velocity command to be published
 
-bool sub_flag=false;
+bool sub_flag=false;							// lidar data subscription flag
 
 vector<float> lidar;							// lidar ranges
 vector<float> lidar_f;							// filtered lidar ranges
 vector<int> b_idx;								// boundary index
 
-int l_num;										// lidar data element number
+int l_num;										// number of elements of lidar ranges
 float dev;
 
 float inf=1/0.0;								// infinite number
@@ -34,6 +34,9 @@ float t_dir=0.0;								// target direction [deg]
 
 float p_dist=0.6;								// p gain for distance control
 float p_dir=0.9;								// p gain for direction control
+
+float max_lin_vel=0.26;							// max velocity
+float max_ang_vel=1.82;
 
 
 ///////////////////////////////////////////////////////////////////////////	sub, pub class
@@ -62,7 +65,7 @@ public:
 		vel_pub.publish(cmd_vel);
 	}
 	
-	void lidar_callback(const sensor_msgs::LaserScan::ConstPtr& msg)	// call back function
+	void lidar_callback(const sensor_msgs::LaserScan::ConstPtr& msg)	// lidar call back func.
 	{
 		sub_flag=true;
 		
@@ -132,10 +135,9 @@ void find_boundary()
 			b_idx.erase(b_idx.begin()+i);
 	}
 	
-	////////////////////////////////////////////////////////////////for debugging
 	for(int i=0; i<b_idx.size(); i++)
 	{
-		ROS_INFO("boundary [%d]: %d", i, b_idx[i]);
+		ROS_INFO("boundary: %d", b_idx[i]);
 	}
 }
 
@@ -180,11 +182,6 @@ void object_location()
 		}
 	}
 	
-	////////////////////////////////////////////////////////////////for debugging
-	ROS_INFO("reference direction: %d", dir);
-	ROS_INFO("left boundary: %d", left_b);
-	ROS_INFO("right boundary: %d", right_b);
-	
 	if(left_b<right_b)
 	{
 		for(int i=left_b; i<right_b; i++)
@@ -217,10 +214,6 @@ void object_location()
 		o_dist/=float(right_b-left_b+l_num);
 		o_dir=o_dir/float(right_b-left_b+l_num)*2.0*PI/(float)l_num;
 	}
-	
-	////////////////////////////////////////////////////////////////for debugging
-	ROS_INFO("distance: %f", o_dist);
-	ROS_INFO("direction: %f", o_dir*360.0/2.0/PI);
 }
 
 
@@ -232,6 +225,16 @@ void vel_control()
 	
 	cmd_vel.linear.x=p_dist*dist_err;
 	cmd_vel.angular.z=p_dir*dir_err;
+	
+	if(cmd_vel.linear.x>max_lin_vel)
+		cmd_vel.linear.x=max_lin_vel;
+	else if(cmd_vel.linear.x<-max_lin_vel)
+		cmd_vel.linear.x=max_lin_vel;
+	
+	if(cmd_vel.angular.z>max_ang_vel)
+		cmd_vel.angular.z=max_ang_vel;
+	else if(cmd_vel.angular.z<-max_ang_vel)
+		cmd_vel.angular.z=-max_ang_vel;
 }
 
 
