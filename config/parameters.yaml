@@ -1,0 +1,10 @@
+max_rng: 8.0                     # robot size [pixel]
+tau: 0.5                         # malfunctioning step count
+
+t_dist: 0.8                      # arrival range ['size']
+
+p_dist: 0.6                      # line detection threshold
+p_dir: 0.9                       # line_p detection threshold
+
+max_lin_vel: 0.07                # line_p detection minimum length [pixel]
+max_ang_vel: 0.8                 # line_p detection maximum gap [pixel]

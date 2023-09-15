@@ -24,13 +24,14 @@ float inf=1/0.0;								// infinite number
 float o_dist;									// object distance [m]
 float o_dir=0.0;								// object direction [deg]
 
+float t_dir=0.0;								// target direction [deg]
+
 
 ///////////////////////////////////////////////////////////////////////////	parameters
 float max_rng=8.0;								// lidar max range
 float tau=0.5;									// high pass filter coefficient
 
 float t_dist=0.8;								// target distance [m]
-float t_dir=0.0;								// target direction [deg]
 
 float p_dist=0.6;								// p gain for distance control
 float p_dir=0.9;								// p gain for direction control
@@ -58,6 +59,14 @@ public:
 		cmd_vel.linear.z=0;
 		cmd_vel.angular.x=0;
 		cmd_vel.angular.y=0;
+		
+		nh.getParam("/object_following/max_rng", max_rng);	// load parameters
+		nh.getParam("/object_following/tau", tau);
+		nh.getParam("/object_following/t_dist", t_dist);
+		nh.getParam("/object_following/p_dist", p_dist);
+		nh.getParam("/object_following/p_dir", p_dir);
+		nh.getParam("/object_following/max_lin_vel", max_lin_vel);
+		nh.getParam("/object_following/max_ang_vel", max_ang_vel);
 	}
 	
 	void vel_publish()							// velocity command publish func.
