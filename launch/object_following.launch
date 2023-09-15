@@ -2,5 +2,6 @@
 
 <launch>
   <node name="object_following" pkg="object_following" type="object_following" output="screen" >
+    <rosparam command="load" file="$(find object_following)/config/parameters.yaml" />
   </node>
 </launch>
