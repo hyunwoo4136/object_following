@@ -28,16 +28,16 @@ float t_dir=0.0;								// target direction [deg]
 
 
 ///////////////////////////////////////////////////////////////////////////	parameters
-float max_rng=8.0;								// lidar max range
-float tau=0.5;									// high pass filter coefficient
+float max_rng;									// lidar max range
+float tau;										// high pass filter coefficient
 
-float t_dist=0.8;								// target distance [m]
+float t_dist;									// target distance [m]
 
-float p_dist=0.6;								// p gain for distance control
-float p_dir=0.9;								// p gain for direction control
+float p_dist;									// p gain for distance control
+float p_dir;									// p gain for direction control
 
-float max_lin_vel=0.26;							// max velocity
-float max_ang_vel=1.82;
+float max_lin_vel;								// max linear velocity [m/s]
+float max_ang_vel;								// max angular velocity [rad/s]
 
 
 ///////////////////////////////////////////////////////////////////////////	sub, pub class
